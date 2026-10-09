@@ -1,6 +1,6 @@
 # Suíte de testes semânticos MINIC
 
-Contém 20 fontes `.c`: 10 casos de aceitação e 10 de rejeição semântica, além do gabarito completo em `GABARITO.md`.
+Contém 34 fontes `.c`: 11 casos de aceitação e 23 de rejeição semântica, além do gabarito completo em `GABARITO.md`.
 
 ## Uso
 

@@ -1,0 +1,6 @@
+SEM012 — linha 5, coluna 13: Função “g” não produz valor (retorno void) e não pode ser usada como expressão de atribuição.
+SEM012 — linha 6, coluna 13: Função “g” não produz valor (retorno void) e não pode ser usada como operando de “+”.
+SEM012 — linha 7, coluna 11: Função “g” não produz valor (retorno void) e não pode ser usada como argumento de print.
+SEM012 — linha 8, coluna 9: Função “g” não produz valor (retorno void) e não pode ser usada como condição de if.
+SEM012 — linha 9, coluna 12: Função “g” não produz valor (retorno void) e não pode ser usada como valor de retorno.
+Análise semântica concluída: 5 erros; programa rejeitado.

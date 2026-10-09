@@ -1,0 +1,4 @@
+SEM015 — linha 6, coluna 5: “x” não é vetor e não pode ser indexado (tipo int).
+SEM015 — linha 7, coluna 9: “dobro” não é vetor e não pode ser indexado (tipo função).
+SEM015 — linha 8, coluna 12: “x” não é vetor e não pode ser indexado (tipo int).
+Análise semântica concluída: 3 erros; programa rejeitado.

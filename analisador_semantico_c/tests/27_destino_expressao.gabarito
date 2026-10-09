@@ -1,0 +1,5 @@
+SEM013 — linha 4, coluna 5: Destino de atribuição não é atribuível; a expressão “a + b” não designa uma variável ou elemento de vetor.
+SEM013 — linha 5, coluna 5: Destino de atribuição não é atribuível; a expressão “-a” não designa uma variável ou elemento de vetor.
+SEM013 — linha 6, coluna 5: Destino de atribuição não é atribuível; o literal booleano “true” não designa uma variável ou elemento de vetor.
+SEM013 — linha 7, coluna 5: Destino de atribuição não é atribuível; o literal real “2.5” não designa uma variável ou elemento de vetor.
+Análise semântica concluída: 4 erros; programa rejeitado.

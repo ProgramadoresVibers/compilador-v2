@@ -1,0 +1,4 @@
+SEM019 — linha 1, coluna 1: Comando return fora de uma função.
+SEM018 — linha 3, coluna 5: Comando break fora de um laço (while ou for).
+SEM018 — linha 4, coluna 5: Comando continue fora de um laço (while ou for).
+Análise semântica concluída: 3 erros; programa rejeitado.

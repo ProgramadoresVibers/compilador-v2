@@ -1,0 +1,4 @@
+SEM011 — linha 1, coluna 1: A função “semif” pode terminar sem retornar int; o fim do corpo pode ser alcançado sem um comando return.
+SEM011 — linha 5, coluna 1: A função “senaoretorna” pode terminar sem retornar int; o ramo em que “c” é verdadeiro alcança o fim do corpo.
+SEM011 — linha 12, coluna 1: A função “lacocombreak” pode terminar sem retornar int; o fim do corpo pode ser alcançado sem um comando return.
+Análise semântica concluída: 3 erros; programa rejeitado.

@@ -236,10 +236,15 @@ O analisador semântico percorre a Árvore Sintática Abstrata (AST) construída
   - Tipos primitivos: `int`, `float`, `bool`, `char`, `void` e vetores (`tipo[]`).
   - Promoção numérica implícita permitida: `int → float`.
   - Proibição de estreitamento implícito (*narrowing*): `float` não pode ser atribuído a `int` sem conversão explícita.
-- **Validação de Valor-L (L-Value)**: Verificação semântica de que apenas identificadores de variáveis e elementos indexados de vetores podem figurar no lado esquerdo de atribuições.
-- **Garantia de Cobertura de Retorno**: Verificação em funções não-`void` de que todos os caminhos de execução retornam um valor de tipo compatível, detectando potenciais quedas de fluxo sem retorno.
-- **Validação de Aridade e Tipos de Argumentos**: Checagem de quantidade e compatibilidade de tipos para cada parâmetro formal e argumento real passado na chamada.
-- **Diagnósticos Canônicos com Coordenadas Precisas**: Emissão padronizada de mensagens de erro com códigos (`SEM001` a `SEM013`), linha e coluna exatas do elemento causador da inconformidade.
+- **Checagem de Operandos**: Operadores aritméticos (`+ - * /`) exigem operandos numéricos; `%` exige `int`; relacionais (`< > <= >=`) exigem operandos numéricos (ou dois `char`); igualdade (`== !=`) exige operandos numéricos ou do mesmo tipo `bool`/`char`; lógicos (`&& || !`) exigem `bool`; o menos unário exige operando numérico.
+- **Validação de Valor-L (L-Value)**: Verificação semântica de que apenas variáveis escalares e elementos indexados de vetores podem figurar no lado esquerdo de atribuições (literais, expressões, vetores inteiros e nomes de função são rejeitados).
+- **Uso Correto de Vetores e Funções**: Só vetores podem ser indexados; só funções podem ser chamadas (respeitando o sombreamento por variáveis locais); nome de função não pode ser usado como valor sem chamada; vetores devem ter tamanho maior que zero.
+- **Uso de `void` como Valor**: Chamadas de funções `void` só são aceitas em posição de comando; são rejeitadas como operando, argumento, condição, índice, valor de retorno, inicialização ou atribuição.
+- **Garantia de Cobertura de Retorno**: Verificação em funções não-`void` de que todos os caminhos de execução retornam um valor de tipo compatível, detectando potenciais quedas de fluxo sem retorno (laços `while (true)` / `for (;;)` sem `break` são reconhecidos como não terminantes). Funções `void` não podem retornar valor.
+- **Comandos Fora de Contexto**: `break`/`continue` fora de laço e `return` fora de função.
+- **Validação de Aridade e Tipos de Argumentos**: Checagem de quantidade e compatibilidade de tipos para cada parâmetro formal e argumento real passado na chamada; argumentos excedentes também são analisados.
+- **Diagnósticos Canônicos com Coordenadas Precisas**: Emissão padronizada de mensagens de erro com códigos (`SEM001` a `SEM020`), linha e coluna exatas do elemento causador da inconformidade, em ordem de ocorrência no código-fonte.
+- **Código de Saída**: `0` quando o programa é aceito e `1` quando é rejeitado (por erro léxico, sintático ou semântico).
 
 ---
 
@@ -254,10 +259,19 @@ O analisador semântico percorre a Árvore Sintática Abstrata (AST) construída
 | **SEM006** | Expressão de índice de vetor com tipo diferente de `int`. |
 | **SEM007** | Número de argumentos incompatível com a aridade esperada da função. |
 | **SEM008** | Tipo de argumento incompatível com o tipo declarado do parâmetro formal correspondente. |
-| **SEM009** | Tipo da expressão de retorno incompatível com o tipo de retorno declarado da função. |
+| **SEM009** | Tipo da expressão de retorno incompatível com o tipo de retorno declarado da função (inclui `return;` em função não-`void` e `return expr;` em função `void`). |
 | **SEM011** | Função não-`void` pode alcançar o final do corpo sem retornar valor em determinados ramos. |
-| **SEM012** | Chamada de função com retorno `void` utilizada indevidamente como valor em expressão de atribuição. |
-| **SEM013** | Destino de atribuição não atribuível (ex.: literais numéricos em posição de valor-L). |
+| **SEM012** | Chamada de função com retorno `void` utilizada como valor (atribuição, operando, argumento, condição, índice, retorno, `print`). |
+| **SEM013** | Destino de atribuição não atribuível (literal, expressão, vetor inteiro ou nome de função em posição de valor-L). |
+| **SEM014** | Operador aplicado a operandos de tipos incompatíveis. |
+| **SEM015** | Indexação de identificador ou expressão que não é vetor. |
+| **SEM016** | Nome de função usado como valor sem ser chamado. |
+| **SEM017** | Chamada de identificador ou expressão que não é função. |
+| **SEM018** | `break` ou `continue` fora de um laço. |
+| **SEM019** | `return` fora de uma função. |
+| **SEM020** | Vetor declarado com tamanho menor ou igual a zero. |
+
+> Os códigos `SEM004` e `SEM010` permanecem reservados para manter a numeração da apostila.
 
 ---
 

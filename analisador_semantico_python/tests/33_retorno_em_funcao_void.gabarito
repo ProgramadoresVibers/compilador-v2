@@ -1,0 +1,3 @@
+SEM009 — linha 5, coluna 12: A função “h” tem tipo void e não pode retornar valor (expressão “g(...)”).
+SEM009 — linha 8, coluna 12: A função “k” tem tipo void e não pode retornar valor (expressão “1”).
+Análise semântica concluída: 2 erros; programa rejeitado.

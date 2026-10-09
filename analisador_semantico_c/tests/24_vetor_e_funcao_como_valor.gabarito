@@ -1,0 +1,5 @@
+SEM013 — linha 7, coluna 5: Destino de atribuição não é atribuível; o vetor “v” não pode ser atribuído como um todo; atribua a um elemento.
+SEM014 — linha 8, coluna 9: Operador “+” não se aplica aos tipos int[] e int (expressão “v + 1”).
+SEM016 — linha 9, coluna 9: “f” é uma função e não pode ser usada como valor sem ser chamada.
+SEM013 — linha 10, coluna 5: Destino de atribuição não é atribuível; “f” é uma função e não designa uma variável ou elemento de vetor.
+Análise semântica concluída: 4 erros; programa rejeitado.

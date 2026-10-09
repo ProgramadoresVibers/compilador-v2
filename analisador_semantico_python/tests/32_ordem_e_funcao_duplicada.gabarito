@@ -1,0 +1,3 @@
+SEM001 — linha 2, coluna 12: Identificador “ausente” não declarado neste escopo.
+SEM002 — linha 4, coluna 5: “f” já declarado neste escopo; declaração anterior na linha 1, coluna 5 (tipo int).
+Análise semântica concluída: 2 erros; programa rejeitado.

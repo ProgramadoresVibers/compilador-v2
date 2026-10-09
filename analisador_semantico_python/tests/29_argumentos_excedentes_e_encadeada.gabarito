@@ -1,0 +1,4 @@
+SEM001 — linha 6, coluna 9: Identificador “b” não declarado neste escopo.
+SEM007 — linha 7, coluna 12: “f” espera 1 argumento, mas recebeu 2.
+SEM001 — linha 7, coluna 17: Identificador “naoexiste” não declarado neste escopo.
+Análise semântica concluída: 3 erros; programa rejeitado.

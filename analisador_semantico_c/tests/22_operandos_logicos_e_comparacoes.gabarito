@@ -1,0 +1,5 @@
+SEM014 — linha 3, coluna 9: Operador “&&” não se aplica aos tipos int e int (expressão “1 && 2”).
+SEM014 — linha 4, coluna 9: Operador “!” não se aplica ao tipo int (expressão “!5”).
+SEM014 — linha 5, coluna 9: Operador “<” não se aplica aos tipos int e bool (expressão “1 < true”).
+SEM014 — linha 6, coluna 9: Operador “==” não se aplica aos tipos string e int (expressão “"abc" == 3”).
+Análise semântica concluída: 4 erros; programa rejeitado.

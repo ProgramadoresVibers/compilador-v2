@@ -1,0 +1,5 @@
+SEM014 — linha 4, coluna 9: Operador “+” não se aplica aos tipos bool e int (expressão “true + 1”).
+SEM014 — linha 5, coluna 9: Operador “%” não se aplica aos tipos float e float (expressão “2.5 % 2.0”).
+SEM014 — linha 6, coluna 9: Operador “-” não se aplica ao tipo bool (expressão “-true”).
+SEM014 — linha 7, coluna 9: Operador “*” não se aplica aos tipos char e int (expressão “'a' * 2”).
+Análise semântica concluída: 4 erros; programa rejeitado.
