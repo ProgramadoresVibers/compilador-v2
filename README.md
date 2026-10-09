@@ -1,7 +1,7 @@
-
+  
 # Compilador MiniC (Front-End)
 
-Este repositório apresenta o desenvolvimento do **front-end de um compilador para a linguagem MiniC**. Atualmente, o projeto encontra-se com duas etapas concluídas: a implementação do **Analisador Léxico (Scanner)** e do **Analisador Sintático (Parser)**.
+Este repositório apresenta o desenvolvimento do **front-end de um compilador para a linguagem MiniC**. Atualmente, o projeto encontra-se com três etapas concluídas: a implementação do **Analisador Léxico (Scanner)**, do **Analisador Sintático (Parser)** e do **Analisador Semântico**.
 
 ---
 
@@ -9,8 +9,8 @@ Este repositório apresenta o desenvolvimento do **front-end de um compilador pa
 
 Para rodar o projeto e executar os testes com sucesso, certifique-se de ter as seguintes ferramentas instaladas no seu ambiente (como Linux, macOS ou Git Bash no Windows):
 
-* **GCC (GNU Compiler Collection):** Necessário para compilar as versões em C do scanner e do parser.
-* **Python 3.10 ou superior:** Necessário para executar as versões em Python do scanner e do parser e os scripts de automação (`bash`).
+* **GCC (GNU Compiler Collection):** Necessário para compilar as versões em C do scanner, do parser e do analisador semântico.
+* **Python 3.10 ou superior:** Necessário para executar as versões em Python do scanner, do parser e do analisador semântico e os scripts de automação (`bash`).
 
 ---
 
@@ -20,7 +20,7 @@ Para rodar o projeto e executar os testes com sucesso, certifique-se de ter as s
 | :--- | :--- | :--- |
 | **Analisador Léxico (Scanner)** | **Concluído** | Conversão do código-fonte em tokens e geração de diagnósticos de erro. |
 | **Analisador Sintático (Parser)** | **Concluído** | Verificação da gramática utilizando a técnica **LL(1)** e construção da estrutura sintática a partir dos tokens. |
-| **Analisador Semântico** | Planejado | Checagem de tipos, escopos e consistência semântica. |
+| **Analisador Semântico** | **Concluído** | Checagem de tipos, escopos, aridade, coerções numéricas e consistência semântica. |
 | **Geração de Código Intermediário** | Planejado | Tradução para representação intermediária. |
 
 ---
@@ -33,6 +33,8 @@ O repositório está organizado em diretórios separados para isolar as implemen
 * **`scanner_python/`** — Contém o código-fonte do scanner em Python (`scanner.py`) e o script de automação (`testar_scanner_python.sh`).
 * **`parser_c/`** — Contém o código-fonte do parser em C (`parser.c`) e o script de automação (`testar_parser_c.sh`).
 * **`parser_python/`** — Contém o código-fonte do parser em Python (`parser.py`) e o script de automação (`testar_parser_python.sh`).
+* **`analisador_semantico_c/`** — Contém o código-fonte do analisador semântico em C (`minic.c`), script de automação (`testes_semanticos_c.sh`) e casos de teste.
+* **`analisador_semantico_python/`** — Contém o código-fonte do analisador semântico em Python (`minic.py`), script de automação (`testes_semanticos_py.sh`) e casos de teste.
 * **`tests/`** *(presente nas subpastas)* — Armazena os códigos de teste (`.c` e `.minic`) e seus respectivos gabaritos esperados.
 * **`errors/`** *(gerado automaticamente pelo scanner)* — Recebe os arquivos `.errors.jsonl` contendo os diagnósticos de erros léxicos encontrados durante a execução do scanner.
 
@@ -216,8 +218,74 @@ cd parser_python/
 
  Os scripts executam os casos de teste disponíveis na pasta `tests/` e verificam se os resultados produzidos pelo parser estão de acordo com os resultados esperados.
 
+---
 
+# Analisador Semântico
 
+O analisador semântico corresponde à terceira etapa do desenvolvimento do compilador MiniC. Foram desenvolvidas duas implementações equivalentes, uma em **C** (`analisador_semantico_c/minic.c`) e outra em **Python** (`analisador_semantico_python/minic.py`), ambas integradas diretamente ao analisador sintático (o qual invoca o analisador léxico).
+
+O analisador semântico percorre a Árvore Sintática Abstrata (AST) construída pelo parser, realizando checagem estática de tipos, controle de visibilidade e resolução de escopos com suporte a sombreamento (*shadowing*), coleta prévia de assinaturas para recursão mútua, validação de regras de coerção numérica e verificação de retorno estrito em funções.
+
+---
+
+## Funcionalidades
+
+- **Gerenciamento de Escopo e Sombreamento**: Resolução léxica de identificadores em múltiplos níveis de escopo (global, funções e blocos aninhados), permitindo que variáveis internas sombreiem variáveis externas legitimamente.
+- **Resolução de Recursão e Chamadas**: Coleta prévia das assinaturas de todas as funções globais na primeira passada, permitindo que uma função chame a si mesma recursivamente ou chame outras funções declaradas posteriormente.
+- **Sistema de Tipos e Coerções**:
+  - Tipos primitivos: `int`, `float`, `bool`, `char`, `void` e vetores (`tipo[]`).
+  - Promoção numérica implícita permitida: `int → float`.
+  - Proibição de estreitamento implícito (*narrowing*): `float` não pode ser atribuído a `int` sem conversão explícita.
+- **Validação de Valor-L (L-Value)**: Verificação semântica de que apenas identificadores de variáveis e elementos indexados de vetores podem figurar no lado esquerdo de atribuições.
+- **Garantia de Cobertura de Retorno**: Verificação em funções não-`void` de que todos os caminhos de execução retornam um valor de tipo compatível, detectando potenciais quedas de fluxo sem retorno.
+- **Validação de Aridade e Tipos de Argumentos**: Checagem de quantidade e compatibilidade de tipos para cada parâmetro formal e argumento real passado na chamada.
+- **Diagnósticos Canônicos com Coordenadas Precisas**: Emissão padronizada de mensagens de erro com códigos (`SEM001` a `SEM013`), linha e coluna exatas do elemento causador da inconformidade.
+
+---
+
+## Catálogo de Erros Semânticos
+
+| Código | Descrição |
+| :--- | :--- |
+| **SEM001** | Identificador não declarado no escopo corrente ou em escopos ancestrais. |
+| **SEM002** | Declaração duplicada de identificador no mesmo escopo, informando linha/coluna anterior. |
+| **SEM003** | Incompatibilidade de atribuição/conversão entre o tipo de destino e o tipo da expressão. |
+| **SEM005** | Condição de comando de controle (`if`, `while`, `for`) com tipo diferente de `bool`. |
+| **SEM006** | Expressão de índice de vetor com tipo diferente de `int`. |
+| **SEM007** | Número de argumentos incompatível com a aridade esperada da função. |
+| **SEM008** | Tipo de argumento incompatível com o tipo declarado do parâmetro formal correspondente. |
+| **SEM009** | Tipo da expressão de retorno incompatível com o tipo de retorno declarado da função. |
+| **SEM011** | Função não-`void` pode alcançar o final do corpo sem retornar valor em determinados ramos. |
+| **SEM012** | Chamada de função com retorno `void` utilizada indevidamente como valor em expressão de atribuição. |
+| **SEM013** | Destino de atribuição não atribuível (ex.: literais numéricos em posição de valor-L). |
+
+---
+
+## Como Executar os Testes do Analisador Semântico
+
+Os testes do analisador semântico devem ser executados a partir de suas respectivas pastas utilizando o **Git Bash** (ou terminal Bash):
+
+### 1. Testando o Analisador Semântico em C
+
+Entre na pasta `analisador_semantico_c/` e execute o script de testes:
+
+```bash
+cd analisador_semantico_c/
+./testes_semanticos_c.sh minic.c ./tests
+```
+
+> **Observação:** O script compila o analisador automaticamente com `gcc -Wall -Wextra`, integrando o parser e o lexer.
+
+### 2. Testando o Analisador Semântico em Python
+
+Entre na pasta `analisador_semantico_python/` e execute o script de testes:
+
+```bash
+cd analisador_semantico_python/
+./testes_semanticos_py.sh minic.py ./tests
+```
+
+---
 
 ## INTEGRANTES
 
