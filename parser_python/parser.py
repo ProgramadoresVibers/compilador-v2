@@ -400,50 +400,70 @@ class ParserLL1:
 
     def decl_ou_funcao(self):
         """decl_ou_funcao -> tipo_retorno IDENT resto_decl_func"""
+        tok_tipo = self.atual()
         tipo = self.ler_tipo(permite_void=True)
         if not self.verificar("IDENT"):
             self.falhar("esperado identificador")
-        nome = self.consumir("IDENT")["lexeme"]
+        tok_nome = self.consumir("IDENT")
+        nome = tok_nome["lexeme"]
 
         # resto_decl_func: se for '(', é declaração de função; caso contrário, é variável
         if self.aceitar("LPAREN"):
             parametros = self.lista_parametros()
             self.consumir("RPAREN")
             corpo = self.bloco()
-            return [{"no": "Funcao", "tipo": tipo, "nome": nome, "parametros": parametros, "corpo": corpo}]
+            return [{
+                "no": "Funcao",
+                "tipo": tipo,
+                "nome": nome,
+                "parametros": parametros,
+                "corpo": corpo,
+                "linha": tok_tipo["line"],
+                "coluna": tok_tipo["column"],
+                "linha_nome": tok_nome["line"],
+                "coluna_nome": tok_nome["column"]
+            }]
 
         if tipo == "void":
             self.falhar("void exige uma função, com '(' após o nome")
 
-        return self.resto_declaracao(tipo, nome)
+        return self.resto_declaracao(tipo, tok_nome)
 
     def declaracao_local(self):
         tipo = self.ler_tipo(permite_void=False)
         if not self.verificar("IDENT"):
             self.falhar("esperado identificador")
-        nome = self.consumir("IDENT")["lexeme"]
-        return self.resto_declaracao(tipo, nome)
+        tok_nome = self.consumir("IDENT")
+        return self.resto_declaracao(tipo, tok_nome)
 
-    def resto_declaracao(self, tipo, nome):
-        decls = [self.declarador(tipo, nome)]
+    def resto_declaracao(self, tipo, tok_nome):
+        decls = [self.declarador(tipo, tok_nome)]
         while self.aceitar("COMMA"):
             if not self.verificar("IDENT"):
                 self.falhar("esperado identificador após vírgula")
-            prox_nome = self.consumir("IDENT")["lexeme"]
+            prox_nome = self.consumir("IDENT")
             decls.append(self.declarador(tipo, prox_nome))
         self.consumir("SEMICOLON")
         return decls
 
-    def declarador(self, tipo, nome):
+    def declarador(self, tipo, tok_nome):
         tamanho = None
         valor = None
         if self.aceitar("LBRACKET"):
             tok_tam = self.consumir("INT_LIT")
-            tamanho = {"no": "Literal", "tipo": "int", "valor": tok_tam["lexeme"]}
+            tamanho = {"no": "Literal", "tipo": "int", "valor": tok_tam["lexeme"], "linha": tok_tam["line"], "coluna": tok_tam["column"]}
             self.consumir("RBRACKET")
         elif self.aceitar("ASSIGN"):
             valor = self.expressao()
-        return {"no": "Declaracao", "tipo": tipo, "nome": nome, "tamanho": tamanho, "valor": valor}
+        return {
+            "no": "Declaracao",
+            "tipo": tipo,
+            "nome": tok_nome["lexeme"],
+            "tamanho": tamanho,
+            "valor": valor,
+            "linha": tok_nome["line"],
+            "coluna": tok_nome["column"]
+        }
 
     def lista_parametros(self):
         parametros = []
@@ -453,17 +473,24 @@ class ParserLL1:
             tipo = self.ler_tipo(permite_void=False)
             if not self.verificar("IDENT"):
                 self.falhar("esperado identificador do parâmetro")
-            nome = self.consumir("IDENT")["lexeme"]
+            tok_nome = self.consumir("IDENT")
             vetor = bool(self.aceitar("LBRACKET"))
             if vetor:
                 self.consumir("RBRACKET")
-            parametros.append({"no": "Parametro", "tipo": tipo, "nome": nome, "vetor": vetor})
+            parametros.append({
+                "no": "Parametro",
+                "tipo": tipo,
+                "nome": tok_nome["lexeme"],
+                "vetor": vetor,
+                "linha": tok_nome["line"],
+                "coluna": tok_nome["column"]
+            })
             if not self.aceitar("COMMA"):
                 break
         return parametros
 
     def bloco(self):
-        self.consumir("LBRACE")
+        tok_lb = self.consumir("LBRACE")
         itens = []
         while not self.verificar("RBRACE"):
             if self.verificar("EOF"):
@@ -473,7 +500,7 @@ class ParserLL1:
             else:
                 itens.append(self.comando())
         self.consumir("RBRACE")
-        return {"no": "Bloco", "itens": itens}
+        return {"no": "Bloco", "itens": itens, "linha": tok_lb["line"], "coluna": tok_lb["column"]}
 
     def comando(self):
         tok_type = self.atual()["token"]
@@ -492,9 +519,9 @@ class ParserLL1:
         if tok_type == "READ":
             return self.comando_read()
         if tok_type in {"BREAK", "CONTINUE"}:
-            self.consumir(tok_type)
+            tok_c = self.consumir(tok_type)
             self.consumir("SEMICOLON")
-            return {"no": "Break" if tok_type == "BREAK" else "Continue"}
+            return {"no": "Break" if tok_type == "BREAK" else "Continue", "linha": tok_c["line"], "coluna": tok_c["column"]}
         if self.aceitar("SEMICOLON"):
             return {"no": "Vazio"}
         if tok_type in {"RBRACE", "RPAREN", "RBRACKET", "ELSE", "EOF"}:
@@ -502,24 +529,24 @@ class ParserLL1:
 
         valor = self.expressao()
         self.consumir("SEMICOLON")
-        return {"no": "ComandoExpressao", "valor": valor}
+        return {"no": "ComandoExpressao", "valor": valor, "linha": valor.get("linha", 1), "coluna": valor.get("coluna", 1)}
 
     def comando_if(self):
-        self.consumir("IF")
+        tok_if = self.consumir("IF")
         self.consumir("LPAREN")
         condicao = self.expressao()
         self.consumir("RPAREN")
         entao = self.comando()
         senao = self.comando() if self.aceitar("ELSE") else None
-        return {"no": "Se", "condicao": condicao, "entao": entao, "senao": senao}
+        return {"no": "Se", "condicao": condicao, "entao": entao, "senao": senao, "linha": tok_if["line"], "coluna": tok_if["column"]}
 
     def comando_while(self):
-        self.consumir("WHILE")
+        tok_wh = self.consumir("WHILE")
         self.consumir("LPAREN")
         condicao = self.expressao()
         self.consumir("RPAREN")
         corpo = self.comando()
-        return {"no": "Enquanto", "condicao": condicao, "corpo": corpo}
+        return {"no": "Enquanto", "condicao": condicao, "corpo": corpo, "linha": tok_wh["line"], "coluna": tok_wh["column"]}
 
     def expressao_opcional(self, delimitador_fim):
         if self.verificar(delimitador_fim):
@@ -527,7 +554,7 @@ class ParserLL1:
         return self.expressao()
 
     def comando_for(self):
-        self.consumir("FOR")
+        tok_for = self.consumir("FOR")
         self.consumir("LPAREN")
         inicio = self.expressao_opcional("SEMICOLON")
         self.consumir("SEMICOLON")
@@ -536,28 +563,28 @@ class ParserLL1:
         passo = self.expressao_opcional("RPAREN")
         self.consumir("RPAREN")
         corpo = self.comando()
-        return {"no": "Para", "inicio": inicio, "condicao": condicao, "passo": passo, "corpo": corpo}
+        return {"no": "Para", "inicio": inicio, "condicao": condicao, "passo": passo, "corpo": corpo, "linha": tok_for["line"], "coluna": tok_for["column"]}
 
     def comando_return(self):
-        self.consumir("RETURN")
+        tok_ret = self.consumir("RETURN")
         valor = self.expressao_opcional("SEMICOLON")
         self.consumir("SEMICOLON")
-        return {"no": "Retorno", "valor": valor}
+        return {"no": "Retorno", "valor": valor, "linha": tok_ret["line"], "coluna": tok_ret["column"]}
 
     def comando_print(self):
-        self.consumir("PRINT")
+        tok_pr = self.consumir("PRINT")
         self.consumir("LPAREN")
         argumentos = self.lista_argumentos()
         self.consumir("RPAREN")
         self.consumir("SEMICOLON")
-        return {"no": "Imprimir", "argumentos": argumentos}
+        return {"no": "Imprimir", "argumentos": argumentos, "linha": tok_pr["line"], "coluna": tok_pr["column"]}
 
     def comando_read(self):
-        self.consumir("READ")
+        tok_rd = self.consumir("READ")
         self.consumir("LPAREN")
         self.consumir("RPAREN")
         self.consumir("SEMICOLON")
-        return {"no": "Ler"}
+        return {"no": "Ler", "linha": tok_rd["line"], "coluna": tok_rd["column"]}
 
     # --------------------------------------------------------------------------
     # Expressões com Precedência e Associatividade
@@ -565,25 +592,20 @@ class ParserLL1:
     def expressao(self):
         return self.atribuicao()
 
-    @staticmethod
-    def _destino_valido(no):
-        if not isinstance(no, dict):
-            return False
-        tipo = no.get("no")
-        if tipo == "Identificador":
-            return True
-        if tipo == "Indice":
-            return ParserLL1._destino_valido(no.get("base"))
-        return False
-
     def atribuicao(self):
         esquerda = self.expressao_ou()
         if self.verificar("ASSIGN"):
-            if not self._destino_valido(esquerda):
-                self.falhar("o destino da atribuição deve ser um identificador ou índice de vetor")
-            self.consumir("ASSIGN")
+            tok_eq = self.consumir("ASSIGN")
             direita = self.atribuicao()
-            return {"no": "Atribuicao", "destino": esquerda, "valor": direita}
+            return {
+                "no": "Atribuicao",
+                "destino": esquerda,
+                "valor": direita,
+                "linha": esquerda.get("linha", tok_eq["line"]),
+                "coluna": esquerda.get("coluna", tok_eq["column"]),
+                "linha_op": tok_eq["line"],
+                "coluna_op": tok_eq["column"]
+            }
         return esquerda
 
     def binaria(self, prox_nivel, operadores):
@@ -593,7 +615,14 @@ class ParserLL1:
             self.consumir(op_tok["token"])
             operador = op_tok["lexeme"]
             direita = prox_nivel()
-            esquerda = {"no": "Binaria", "operador": operador, "esquerda": esquerda, "direita": direita}
+            esquerda = {
+                "no": "Binaria",
+                "operador": operador,
+                "esquerda": esquerda,
+                "direita": direita,
+                "linha": esquerda.get("linha", op_tok["line"]),
+                "coluna": esquerda.get("coluna", op_tok["column"])
+            }
         return esquerda
 
     def expressao_ou(self):
@@ -618,20 +647,40 @@ class ParserLL1:
         if self.verificar("MINUS", "NOT"):
             tok = self.atual()
             self.consumir(tok["token"])
-            return {"no": "Unaria", "operador": tok["lexeme"], "valor": self.expressao_unaria()}
+            return {
+                "no": "Unaria",
+                "operador": tok["lexeme"],
+                "valor": self.expressao_unaria(),
+                "linha": tok["line"],
+                "coluna": tok["column"]
+            }
         return self.expressao_posfixa()
 
     def expressao_posfixa(self):
         arvore = self.primario()
         while True:
-            if self.aceitar("LBRACKET"):
+            if self.verificar("LBRACKET"):
+                tok_lb = self.consumir("LBRACKET")
                 indice = self.expressao()
                 self.consumir("RBRACKET")
-                arvore = {"no": "Indice", "base": arvore, "indice": indice}
-            elif self.aceitar("LPAREN"):
+                arvore = {
+                    "no": "Indice",
+                    "base": arvore,
+                    "indice": indice,
+                    "linha": arvore.get("linha", tok_lb["line"]),
+                    "coluna": arvore.get("coluna", tok_lb["column"])
+                }
+            elif self.verificar("LPAREN"):
+                tok_lp = self.consumir("LPAREN")
                 argumentos = [] if self.verificar("RPAREN") else self.lista_argumentos()
                 self.consumir("RPAREN")
-                arvore = {"no": "Chamada", "funcao": arvore, "argumentos": argumentos}
+                arvore = {
+                    "no": "Chamada",
+                    "funcao": arvore,
+                    "argumentos": argumentos,
+                    "linha": arvore.get("linha", tok_lp["line"]),
+                    "coluna": arvore.get("coluna", tok_lp["column"])
+                }
             else:
                 break
         return arvore
@@ -646,7 +695,12 @@ class ParserLL1:
         tipo = self.atual()["token"]
         if tipo == "IDENT":
             tok = self.consumir("IDENT")
-            return {"no": "Identificador", "nome": tok["lexeme"]}
+            return {
+                "no": "Identificador",
+                "nome": tok["lexeme"],
+                "linha": tok["line"],
+                "coluna": tok["column"]
+            }
 
         tipos_literais = {
             "INT_LIT": "int", "FLOAT_LIT": "real", "TRUE": "bool", "FALSE": "bool",
@@ -654,7 +708,13 @@ class ParserLL1:
         }
         if tipo in tipos_literais:
             tok = self.consumir(tipo)
-            return {"no": "Literal", "tipo": tipos_literais[tipo], "valor": tok["lexeme"]}
+            return {
+                "no": "Literal",
+                "tipo": tipos_literais[tipo],
+                "valor": tok["lexeme"],
+                "linha": tok["line"],
+                "coluna": tok["column"]
+            }
 
         if self.aceitar("LPAREN"):
             arv = self.expressao()

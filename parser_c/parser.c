@@ -33,6 +33,10 @@ struct NoAST {
     size_t quantidade;
     size_t capacidade;
     NoAST* proximo_alocado;
+    int linha;
+    int coluna;
+    int linha_nome;
+    int coluna_nome;
 };
 
 typedef struct {
@@ -103,6 +107,9 @@ static NoAST* novo_no(ParserLL1* p, TipoNo tipo) {
     NoAST* no = calloc(1, sizeof(*no));
     if (!no) sem_memoria(p);
     no->no = tipo;
+    const Token* tok = atual(p);
+    no->linha = tok->line;
+    no->coluna = tok->column;
     no->proximo_alocado = p->alocados;
     p->alocados = no;
     return no;
@@ -174,12 +181,18 @@ static const char* ler_tipo(ParserLL1* p, int permite_void) {
     return consumir(p, atual(p)->token)->lexeme;
 }
 
-static NoAST* declarador(ParserLL1* p, const char* tipo, const char* nome) {
+static NoAST* declarador(ParserLL1* p, const char* tipo, const Token* tok_nome) {
     NoAST* no = novo_no(p, NO_DECLARACAO);
     no->tipo = tipo;
-    no->texto = nome;
+    no->texto = tok_nome->lexeme;
+    no->linha = tok_nome->line;
+    no->coluna = tok_nome->column;
     if (aceitar(p, "LBRACKET")) {
-        no->filhos[0] = literal(p, "int", consumir(p, "INT_LIT")->lexeme);
+        const Token* tok_tam = consumir(p, "INT_LIT");
+        NoAST* lit = literal(p, "int", tok_tam->lexeme);
+        lit->linha = tok_tam->line;
+        lit->coluna = tok_tam->column;
+        no->filhos[0] = lit;
         consumir(p, "RBRACKET");
     } else if (aceitar(p, "ASSIGN")) {
         no->filhos[1] = expressao(p);
@@ -187,11 +200,11 @@ static NoAST* declarador(ParserLL1* p, const char* tipo, const char* nome) {
     return no;
 }
 
-static void resto_declaracao(ParserLL1* p, NoAST* lista, const char* tipo, const char* nome) {
-    adicionar_item(p, lista, declarador(p, tipo, nome));
+static void resto_declaracao(ParserLL1* p, NoAST* lista, const char* tipo, const Token* tok_nome) {
+    adicionar_item(p, lista, declarador(p, tipo, tok_nome));
     while (aceitar(p, "COMMA")) {
-        nome = consumir(p, "IDENT")->lexeme;
-        adicionar_item(p, lista, declarador(p, tipo, nome));
+        const Token* prox_tok = consumir(p, "IDENT");
+        adicionar_item(p, lista, declarador(p, tipo, prox_tok));
     }
     consumir(p, "SEMICOLON");
 }
@@ -200,10 +213,12 @@ static void lista_parametros(ParserLL1* p, NoAST* funcao) {
     if (verificar(p, "RPAREN")) return;
     do {
         const char* tipo = ler_tipo(p, 0);
-        const char* nome = consumir(p, "IDENT")->lexeme;
+        const Token* tok_nome = consumir(p, "IDENT");
         NoAST* parametro = novo_no(p, NO_PARAMETRO);
         parametro->tipo = tipo;
-        parametro->texto = nome;
+        parametro->texto = tok_nome->lexeme;
+        parametro->linha = tok_nome->line;
+        parametro->coluna = tok_nome->column;
         parametro->vetor = aceitar(p, "LBRACKET");
         if (parametro->vetor) consumir(p, "RBRACKET");
         adicionar_item(p, funcao, parametro);
@@ -211,19 +226,25 @@ static void lista_parametros(ParserLL1* p, NoAST* funcao) {
 }
 
 static void decl_ou_funcao(ParserLL1* p, NoAST* programa) {
+    const Token* tok_tipo = atual(p);
     const char* tipo = ler_tipo(p, 1);
-    const char* nome = consumir(p, "IDENT")->lexeme;
+    const Token* tok_nome = consumir(p, "IDENT");
+    const char* nome = tok_nome->lexeme;
     if (aceitar(p, "LPAREN")) {
         NoAST* funcao = novo_no(p, NO_FUNCAO);
         funcao->tipo = tipo;
         funcao->texto = nome;
+        funcao->linha = tok_tipo->line;
+        funcao->coluna = tok_tipo->column;
+        funcao->linha_nome = tok_nome->line;
+        funcao->coluna_nome = tok_nome->column;
         lista_parametros(p, funcao);
         consumir(p, "RPAREN");
         funcao->filhos[0] = bloco(p);
         adicionar_item(p, programa, funcao);
     } else {
         if (strcmp(tipo, "void") == 0) falhar(p, "void exige uma funcao");
-        resto_declaracao(p, programa, tipo, nome);
+        resto_declaracao(p, programa, tipo, tok_nome);
     }
 }
 
@@ -234,8 +255,8 @@ static NoAST* bloco(ParserLL1* p) {
         switch (consultar_tabela(p, "item_bloco")) {
             case 26: {
                 const char* tipo = ler_tipo(p, 0);
-                const char* nome = consumir(p, "IDENT")->lexeme;
-                resto_declaracao(p, no, tipo, nome);
+                const Token* tok_nome = consumir(p, "IDENT");
+                resto_declaracao(p, no, tipo, tok_nome);
                 break;
             }
             case 27:
@@ -274,9 +295,11 @@ static void lista_argumentos(ParserLL1* p, NoAST* no) {
 }
 
 static NoAST* comando_if(ParserLL1* p) {
-    consumir(p, "IF");
+    const Token* tok = consumir(p, "IF");
     consumir(p, "LPAREN");
     NoAST* no = novo_no(p, NO_SE);
+    no->linha = tok->line;
+    no->coluna = tok->column;
     no->filhos[0] = expressao(p);
     consumir(p, "RPAREN");
     no->filhos[1] = comando(p);
@@ -286,9 +309,11 @@ static NoAST* comando_if(ParserLL1* p) {
 }
 
 static NoAST* comando_while(ParserLL1* p) {
-    consumir(p, "WHILE");
+    const Token* tok = consumir(p, "WHILE");
     consumir(p, "LPAREN");
     NoAST* no = novo_no(p, NO_ENQUANTO);
+    no->linha = tok->line;
+    no->coluna = tok->column;
     no->filhos[0] = expressao(p);
     consumir(p, "RPAREN");
     no->filhos[1] = comando(p);
@@ -296,9 +321,11 @@ static NoAST* comando_while(ParserLL1* p) {
 }
 
 static NoAST* comando_for(ParserLL1* p) {
-    consumir(p, "FOR");
+    const Token* tok = consumir(p, "FOR");
     consumir(p, "LPAREN");
     NoAST* no = novo_no(p, NO_PARA);
+    no->linha = tok->line;
+    no->coluna = tok->column;
     no->filhos[0] = expressao_opcional(p, "SEMICOLON");
     consumir(p, "SEMICOLON");
     no->filhos[1] = expressao_opcional(p, "SEMICOLON");
@@ -310,17 +337,21 @@ static NoAST* comando_for(ParserLL1* p) {
 }
 
 static NoAST* comando_return(ParserLL1* p) {
-    consumir(p, "RETURN");
+    const Token* tok = consumir(p, "RETURN");
     NoAST* no = novo_no(p, NO_RETORNO);
+    no->linha = tok->line;
+    no->coluna = tok->column;
     no->filhos[0] = expressao_opcional(p, "SEMICOLON");
     consumir(p, "SEMICOLON");
     return no;
 }
 
 static NoAST* comando_print(ParserLL1* p) {
-    consumir(p, "PRINT");
+    const Token* tok = consumir(p, "PRINT");
     consumir(p, "LPAREN");
     NoAST* no = novo_no(p, NO_IMPRIMIR);
+    no->linha = tok->line;
+    no->coluna = tok->column;
     lista_argumentos(p, no);
     consumir(p, "RPAREN");
     consumir(p, "SEMICOLON");
@@ -328,11 +359,14 @@ static NoAST* comando_print(ParserLL1* p) {
 }
 
 static NoAST* comando_read(ParserLL1* p) {
-    consumir(p, "READ");
+    const Token* tok = consumir(p, "READ");
     consumir(p, "LPAREN");
     consumir(p, "RPAREN");
     consumir(p, "SEMICOLON");
-    return novo_no(p, NO_LER);
+    NoAST* no = novo_no(p, NO_LER);
+    no->linha = tok->line;
+    no->coluna = tok->column;
+    return no;
 }
 
 static NoAST* comando(ParserLL1* p) {
@@ -345,9 +379,12 @@ static NoAST* comando(ParserLL1* p) {
         case 42:
         case 43: {
             TipoNo tipo = verificar(p, "BREAK") ? NO_BREAK : NO_CONTINUE;
-            consumir(p, atual(p)->token);
+            const Token* tok = consumir(p, atual(p)->token);
             consumir(p, "SEMICOLON");
-            return novo_no(p, tipo);
+            NoAST* no = novo_no(p, tipo);
+            no->linha = tok->line;
+            no->coluna = tok->column;
+            return no;
         }
         case 44: return comando_print(p);
         case 45: return comando_read(p);
@@ -356,6 +393,10 @@ static NoAST* comando(ParserLL1* p) {
             NoAST* no = novo_no(p, NO_COMANDO_EXPRESSAO);
             no->filhos[0] = expressao(p);
             consumir(p, "SEMICOLON");
+            if (no->filhos[0]) {
+                no->linha = no->filhos[0]->linha;
+                no->coluna = no->filhos[0]->coluna;
+            }
             return no;
         }
         default: falhar(p, "esperado inicio de comando");
@@ -374,11 +415,14 @@ static int operador_atual(const ParserLL1* p, const char* const* operadores) {
 static NoAST* binaria(ParserLL1* p, NivelExpressao proximo, const char* const* operadores) {
     NoAST* esquerda = proximo(p);
     while (operador_atual(p, operadores)) {
-        const char* operador = consumir(p, atual(p)->token)->lexeme;
+        const Token* tok_op = consumir(p, atual(p)->token);
+        const char* operador = tok_op->lexeme;
         NoAST* no = novo_no(p, NO_BINARIA);
         no->texto = operador;
         no->filhos[0] = esquerda;
         no->filhos[1] = proximo(p);
+        no->linha = esquerda ? esquerda->linha : tok_op->line;
+        no->coluna = esquerda ? esquerda->coluna : tok_op->column;
         esquerda = no;
     }
     return esquerda;
@@ -414,19 +458,15 @@ static NoAST* expressao_ou(ParserLL1* p) {
     return binaria(p, expressao_e, ops);
 }
 
-static int destino_valido(const NoAST* no) {
-    while (no && no->no == NO_INDICE) no = no->filhos[0];
-    return no && no->no == NO_IDENTIFICADOR;
-}
-
 static NoAST* atribuicao(ParserLL1* p) {
     NoAST* esquerda = expressao_ou(p);
     if (verificar(p, "ASSIGN")) {
-        if (!destino_valido(esquerda)) falhar(p, "destino de atribuicao invalido");
-        consumir(p, "ASSIGN");
+        const Token* tok_eq = consumir(p, "ASSIGN");
         NoAST* no = novo_no(p, NO_ATRIBUICAO);
         no->filhos[0] = esquerda;
         no->filhos[1] = atribuicao(p);
+        no->linha = esquerda ? esquerda->linha : tok_eq->line;
+        no->coluna = esquerda ? esquerda->coluna : tok_eq->column;
         return no;
     }
     return esquerda;
@@ -439,14 +479,20 @@ static NoAST* expressao(ParserLL1* p) {
 static NoAST* primario(ParserLL1* p) {
     int regra = consultar_tabela(p, "primario");
     if (regra == 103) {
+        const Token* tok_id = consumir(p, "IDENT");
         NoAST* no = novo_no(p, NO_IDENTIFICADOR);
-        no->texto = consumir(p, "IDENT")->lexeme;
+        no->texto = tok_id->lexeme;
+        no->linha = tok_id->line;
+        no->coluna = tok_id->column;
         return no;
     }
     if (regra >= 104 && regra <= 109) {
         static const char* const tipos[] = {"int", "real", "bool", "bool", "char", "string"};
         const Token* token = consumir(p, atual(p)->token);
-        return literal(p, tipos[regra - 104], token->lexeme);
+        NoAST* no = literal(p, tipos[regra - 104], token->lexeme);
+        no->linha = token->line;
+        no->coluna = token->column;
+        return no;
     }
     if (regra == 110) {
         consumir(p, "LPAREN");
@@ -464,11 +510,15 @@ static NoAST* expressao_posfixa(ParserLL1* p) {
             NoAST* no = novo_no(p, NO_INDICE);
             no->filhos[0] = arvore;
             no->filhos[1] = expressao(p);
+            no->linha = arvore ? arvore->linha : atual(p)->line;
+            no->coluna = arvore ? arvore->coluna : atual(p)->column;
             consumir(p, "RBRACKET");
             arvore = no;
         } else if (aceitar(p, "LPAREN")) {
             NoAST* no = novo_no(p, NO_CHAMADA);
             no->filhos[0] = arvore;
+            no->linha = arvore ? arvore->linha : atual(p)->line;
+            no->coluna = arvore ? arvore->coluna : atual(p)->column;
             if (!verificar(p, "RPAREN")) lista_argumentos(p, no);
             consumir(p, "RPAREN");
             arvore = no;
@@ -482,10 +532,13 @@ static NoAST* expressao_unaria(ParserLL1* p) {
     switch (consultar_tabela(p, "expressao_unaria")) {
         case 91:
         case 92: {
-            const char* operador = consumir(p, atual(p)->token)->lexeme;
+            const Token* tok_op = consumir(p, atual(p)->token);
+            const char* operador = tok_op->lexeme;
             NoAST* no = novo_no(p, NO_UNARIA);
             no->texto = operador;
             no->filhos[0] = expressao_unaria(p);
+            no->linha = tok_op->line;
+            no->coluna = tok_op->column;
             return no;
         }
         case 93: return expressao_posfixa(p);
