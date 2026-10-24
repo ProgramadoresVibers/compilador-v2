@@ -989,6 +989,8 @@ static void visitar_declaracao_funcao(const NoAST* node) {
     funcao_atual = NULL;
 }
 
+static int sem_modo_ir = 0;
+
 static int executar_analise_semantica(const NoAST* arvore) {
     if (!arvore || arvore->no != NO_PROGRAMA) return 0;
 
@@ -1059,13 +1061,15 @@ static int executar_analise_semantica(const NoAST* arvore) {
 
     /* Emissão de diagnósticos */
     if (qtd_erros_semanticos == 0) {
-        printf("Análise semântica concluída: 0 erros; programa aceito.");
+        if (!sem_modo_ir) {
+            printf("Análise semântica concluída: 0 erros; programa aceito.");
+        }
     } else {
         for (size_t i = 0; i < qtd_erros_semanticos; i++) {
-            printf("%s\n", erros_semanticos[i]);
+            fprintf(sem_modo_ir ? stderr : stdout, "%s\n", erros_semanticos[i]);
         }
-        printf("Análise semântica concluída: %zu erro%s; programa rejeitado.",
-               qtd_erros_semanticos, qtd_erros_semanticos > 1 ? "s" : "");
+        fprintf(sem_modo_ir ? stderr : stdout, "Análise semântica concluída: %lu erro%s; programa rejeitado.",
+               (unsigned long)qtd_erros_semanticos, qtd_erros_semanticos > 1 ? "s" : "");
     }
 
     int aceito = (qtd_erros_semanticos == 0);
@@ -1094,9 +1098,17 @@ static int executar_analise_semantica(const NoAST* arvore) {
  * PONTO DE ENTRADA (MAIN)
  * ============================================================================== */
 
+#include "../representacao_intermediaria_c/ir.h"
+
+#ifndef MINIC_NO_MAIN
 int main(int argc, char** argv) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--ir") == 0 || strcmp(argv[i], "-O0") == 0 || strcmp(argv[i], "-O1") == 0) {
+            return ir_main(argc, argv);
+        }
+    }
 #ifdef _WIN32
-    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(1, _O_BINARY); /* descritor padrão de stdout */
 #endif
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <caminho_arquivo_c>\n", argv[0]);
@@ -1143,3 +1155,4 @@ int main(int argc, char** argv) {
     /* Código de saída 0 = programa aceito; 1 = programa rejeitado */
     return aceito ? 0 : 1;
 }
+#endif /* MINIC_NO_MAIN */

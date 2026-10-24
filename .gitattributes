@@ -1,0 +1,3 @@
+# Keep the new test entry points executable by Bash after a Windows checkout.
+representacao_intermediaria_c/test_ir_c.sh text eol=lf
+representacao_intermediaria_python/test_ir_python.sh text eol=lf

@@ -1,0 +1,21 @@
+# Local documentation directories, at any directory depth.
+[dD][oO][cC]/
+[dD][oO][cC][sS]/
+[dD]ocumentation/
+[dD]ocumentacao/
+[dD]ocumentação/
+
+# Local assistant configuration and instruction files.
+.agents/
+.codex/
+.claude/
+.cursor/
+.github/copilot-instructions.md
+.cursorrules
+.windsurfrules
+.clinerules
+.aider.conf.yml
+.aiderignore
+[aA][gG][eE][nN][tT][sS].[mM][dD]
+CLAUDE.md
+GEMINI.md
