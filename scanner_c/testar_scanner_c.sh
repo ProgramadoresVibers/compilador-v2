@@ -5,8 +5,8 @@
 #   ./testar_scanner_c.sh [scanner.c] [pasta-de-testes]
 #
 # O scanner deve aceitar:
-#   ./scanner --tokens arquivo.c
-#   ./scanner --tokens arquivo.minic
+#   ./scanner arquivo.c
+#   ./scanner arquivo.minic
 #
 # A saída padrão deve conter um objeto JSON por linha, compatível com os
 # arquivos <entrada>.expected.jsonl. Diagnósticos esperados podem ser
@@ -110,11 +110,11 @@ run_case() {
     local input="$1" expected="$2" label="${1#./}"
     TOTAL=$((TOTAL + 1))
     printf '\n================================================================\nCaso: %s\n' "$label"
-    printf 'Comando: %s --tokens %s\n' "$SCANNER_BINARY" "$input"
+    printf 'Comando: %s %s\n' "$SCANNER_BINARY" "$input"
     printf 'Resultado esperado: %s\n' "$expected"
 
     local status=0
-    (cd -- "$TMP_DIR" && "$SCANNER_BINARY" --tokens "$input") > "$TMP_DIR/output.jsonl" || status=$?
+    (cd -- "$TMP_DIR" && "$SCANNER_BINARY" "$input") > "$TMP_DIR/output.jsonl" || status=$?
 
     if compare_jsonl "$TMP_DIR/output.jsonl" "$expected"; then
         echo 'RESULTADO: OK'

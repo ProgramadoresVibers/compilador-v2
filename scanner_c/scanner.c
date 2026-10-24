@@ -609,35 +609,13 @@ void write_errors(const char* filepath) {
 // --- MAIN ---
 // Defina SCANNER_NO_MAIN ao incluir este scanner no parser.c.
 #ifndef SCANNER_NO_MAIN
-// parser_c/parser.c fornece esta função na compilação integrada
-// com -DSCANNER_WITH_PARSER.
-#ifdef SCANNER_WITH_PARSER
-int parser_main(int argc, char** argv);
-#endif
-
 int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "Erro: Nenhum arquivo de entrada fornecido.\n");
         return 1;
     }
 
-    // Sem a opção de tokens, a execução é encaminhada ao parser.
-    if (strcmp(argv[1], "--tokens") != 0 && strcmp(argv[1], "-t") != 0) {
-#ifdef SCANNER_WITH_PARSER
-        return parser_main(argc, argv);
-#else
-        fprintf(stderr, "Erro: Parser C ainda não integrado. "
-                "Use --tokens ou -t para executar apenas o scanner.\n");
-        return 1;
-#endif
-    }
-
-    if (argc < 3) {
-        fprintf(stderr, "Erro: Nenhum arquivo de entrada fornecido para o scanner.\n");
-        return 1;
-    }
-
-    char* input_file = argv[2];
+    char* input_file = argv[1];
     analyze_file(input_file);
     print_tokens();
 
