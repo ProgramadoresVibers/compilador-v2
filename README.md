@@ -1,7 +1,7 @@
   
 # Compilador MiniC (Front-End)
 
-Este repositório apresenta o desenvolvimento do **front-end de um compilador para a linguagem MiniC**. Atualmente, o projeto encontra-se com três etapas concluídas: a implementação do **Analisador Léxico (Scanner)**, do **Analisador Sintático (Parser)** e do **Analisador Semântico**.
+Este repositório apresenta o desenvolvimento do **front-end de um compilador para a linguagem MiniC**. Atualmente, o projeto conta com quatro etapas implementadas: **Analisador Léxico (Scanner)**, **Analisador Sintático (Parser)**, **Analisador Semântico** e **Geração de Representação Intermediária (IR)**, com modos sem otimização (`-O0`) e com otimizações conservadoras (`-O1`).
 
 ---
 
@@ -21,7 +21,7 @@ Para rodar o projeto e executar os testes com sucesso, certifique-se de ter as s
 | **Analisador Léxico (Scanner)** | **Concluído** | Conversão do código-fonte em tokens e geração de diagnósticos de erro. |
 | **Analisador Sintático (Parser)** | **Concluído** | Verificação da gramática utilizando a técnica **LL(1)** e construção da estrutura sintática a partir dos tokens. |
 | **Analisador Semântico** | **Concluído** | Checagem de tipos, escopos, aridade, coerções numéricas e consistência semântica. |
-| **Geração de Código Intermediário** | Planejado | Tradução para representação intermediária. |
+| **Geração de Código Intermediário** | **Concluído** | IR de três endereços, controle de fluxo, chamadas, vetores e otimizações conservadoras. |
 
 ---
 
@@ -35,6 +35,9 @@ O repositório está organizado em diretórios separados para isolar as implemen
 * **`parser_python/`** — Contém o código-fonte do parser em Python (`parser.py`) e o script de automação (`testar_parser_python.sh`).
 * **`analisador_semantico_c/`** — Contém o código-fonte do analisador semântico em C (`minic.c`), script de automação (`testes_semanticos_c.sh`) e casos de teste.
 * **`analisador_semantico_python/`** — Contém o código-fonte do analisador semântico em Python (`minic.py`), script de automação (`testes_semanticos_py.sh`) e casos de teste.
+* **`representacao_intermediaria_c/`** — Gerador nativo em C (`representacao_intermediaria.c` e `ir.h`), script `test_ir_c.sh` e suíte de IR.
+* **`representacao_intermediaria_python/`** — Gerador em Python (`representacao_intermediaria.py`), script `test_ir_python.sh` e a mesma suíte de IR.
+* **`validar_ir.py`** — Validador compartilhado da suíte fornecida, máquina virtual de IR e intérprete independente da AST.
 * **`tests/`** *(presente nas subpastas)* — Armazena os códigos de teste (`.c` e `.minic`) e seus respectivos gabaritos esperados.
 * **`errors/`** *(gerado automaticamente pelo scanner)* — Recebe os arquivos `.errors.jsonl` contendo os diagnósticos de erros léxicos encontrados durante a execução do scanner.
 
@@ -296,6 +299,145 @@ Entre na pasta `analisador_semantico_python/` e execute o script de testes:
 cd analisador_semantico_python/
 ./testes_semanticos_py.sh minic.py ./tests
 ```
+
+---
+
+# Representação Intermediária / IR
+
+A representação intermediária corresponde à quarta etapa do compilador MiniC. As implementações em **C** (`representacao_intermediaria_c/representacao_intermediaria.c`) e **Python** (`representacao_intermediaria_python/representacao_intermediaria.py`) reutilizam o scanner, o parser e o analisador semântico existentes, sem repetir a gramática ou a checagem de tipos.
+
+O fluxo completo é **código-fonte → tokens → AST → análise semântica → IR de três endereços → otimizações opcionais**. A IR só é emitida quando todas as etapas anteriores aceitam o programa. As duas versões utilizam o mesmo formato textual e a mesma ordem de avaliação.
+
+---
+
+## Funcionalidades
+
+- **Expressões e Tipos**: Aritmética, módulo, comparações, operadores unários, atribuições associativas e promoção explícita `int → float` com `i2f`. A divisão entre inteiros trunca em direção a zero e o resto acompanha o sinal do dividendo.
+- **Controle de Fluxo**: `if`/`else`, `while`, `for`, `break`, `continue` e `return`, com rótulos e desvios. No `for`, `continue` passa pelo incremento antes de testar novamente a condição.
+- **Curto-Circuito**: `&&` e `||` usam desvios; o segundo operando só é avaliado quando necessário, preservando atribuições e chamadas com efeitos.
+- **Funções e Recursão**: Parâmetros formais, argumentos, retorno, funções `void`, chamadas aninhadas e recursão direta ou mútua. Os argumentos são avaliados da esquerda para a direita antes de emitir `param`, preservando seus valores em temporários.
+- **Escopos**: Cada variável recebe um nome de armazenamento único, preservando sombreamento entre blocos, parâmetros e globais. Temporários também não colidem com identificadores do programa.
+- **Vetores**: `alloc`, `load` e `store` com índices em elementos, sem pressupor tamanho em bytes de uma arquitetura. Parâmetros vetoriais preservam a referência e seus efeitos sobre o vetor original.
+- **Entrada e Saída**: `print` preserva a ordem de avaliação e impressão dos argumentos. `read()` gera uma instrução de leitura sem destino, conforme a gramática atual; não é uma expressão que retorna valor.
+- **Inicialização Global**: A função sintética `$init`, cujo nome não pode ser escrito como identificador MiniC, executa as declarações e comandos globais antes de `main`. O armazenamento global escalar possui valor inicial zero. O código consumidor da IR deve executar `$init` uma única vez.
+
+---
+
+## Formato da IR
+
+Cada linha contém uma instrução e seus operandos, separados por espaços. Literais `char` e `string` mantêm aspas e escapes, podendo conter espaços dentro das aspas. Nomes `%tN` são temporários; `%vN_nome` são variáveis locais; `@gN_nome` são globais. Os contadores são compartilhados durante a geração para garantir nomes únicos.
+
+| Instrução | Significado |
+| :--- | :--- |
+| `func nome tipo` / `endfunc` | Delimitam uma função. |
+| `alloc destino tipo quantidade` | Reserva um escalar ou vetor; vetores usam tipo `int[]`, por exemplo. |
+| `arg destino tipo` | Recebe o próximo parâmetro formal. |
+| `mov destino origem` | Copia um valor. |
+| `add/sub/mul/div/mod destino a b` | Operações aritméticas. |
+| `lt/le/gt/ge/eq/ne destino a b` | Comparações que produzem `bool`. |
+| `neg/not/i2f destino origem` | Negação aritmética, lógica ou conversão numérica. |
+| `label rótulo` / `jmp rótulo` | Define um rótulo ou desvia incondicionalmente. |
+| `brfalse condição rótulo` / `brtrue condição rótulo` | Desvia conforme um booleano. |
+| `param valor` / `call destino função aridade` | Passa argumentos por valor; valores vetoriais são referências. |
+| `load destino vetor índice` / `store vetor índice valor` | Lê ou grava um elemento. |
+| `print valor` / `read` | Efeitos de entrada e saída. |
+| `ret [valor]` | Retorna da função, com valor opcional. |
+
+Exemplo de trecho gerado sem otimização para `int a = 2; print(a + 3);`:
+
+```text
+alloc %v1_a int 1
+mov %v1_a 2
+mov %t2 %v1_a
+add %t3 %t2 3
+print %t3
+```
+
+---
+
+## Modos de Otimização
+
+- **`-O0` (padrão)**: Mantém operações e cópias explícitas, sem propagação de constantes.
+- **`-O1`**: Propaga constantes conhecidas, dobra expressões constantes e conversões, simplifica identidades inteiras (`x + 0`, `x - 0`, `x * 1`, `x / 1`), seleciona ramos constantes e elimina definições locais sem uso e instruções após uma transferência incondicional.
+
+A propagação é conservadora: condições desconhecidas invalidam o conhecimento ao unir ramos; definições que podem mudar no laço são invalidadas antes de sua geração e ao sair; chamadas invalidam constantes globais. Constantes invariantes, como `x = 6` e `y = 7` em um laço que não altera essas variáveis, permitem substituir `x * y` por `42` no próprio código gerado.
+
+As otimizações preservam chamadas, entrada/saída, acessos à memória e divisões/módulos potencialmente excepcionais, mesmo quando seu resultado não é utilizado. Divisão por zero e operações inteiras constantes que ultrapassam o intervalo de 32 bits não são dobradas. Identidades algébricas de ponto flutuante não são aplicadas. Não há, nesta versão, análise geral de reaching definitions, eliminação geral de subexpressões comuns, movimentação de expressões não constantes para fora dos laços ou redução de força de variáveis de indução. Essas transformações podem ser acrescentadas posteriormente sem alterar a IR.
+
+---
+
+## Como Executar
+
+### 1. Gerador em C
+
+```bash
+cd representacao_intermediaria_c/
+gcc -std=c11 -Wall -Wextra representacao_intermediaria.c -o representacao_intermediaria
+./representacao_intermediaria --ir -O0 tests/01-validos-sem-otimizacao/P01/P01.c
+./representacao_intermediaria -O1 --ir tests/03-otimizacoes/O01/O01.c
+```
+
+### 2. Gerador em Python
+
+```bash
+cd representacao_intermediaria_python/
+python representacao_intermediaria.py --ir -O0 tests/01-validos-sem-otimizacao/P01/P01.c
+python representacao_intermediaria.py -O1 --ir tests/03-otimizacoes/O01/O01.c
+```
+
+Também é possível chamar a nova etapa pelo **minic** existente, a partir da raiz do projeto:
+
+```bash
+python analisador_semantico_python/minic.py --ir -O1 arquivo.c
+gcc -std=c11 -Wall -Wextra analisador_semantico_c/minic.c -o minic
+./minic --ir -O1 arquivo.c
+```
+
+Sem `--ir`, `-O0` ou `-O1`, os comandos antigos de `minic` mantêm a análise semântica e sua saída original. Nos geradores dedicados, emitir IR é o comportamento padrão mesmo sem `--ir`.
+
+| Código de saída no modo IR | Significado |
+| :--- | :--- |
+| `0` | Programa aceito, IR emitida em stdout. |
+| `1` | Falha de entrada/infraestrutura. |
+| `2` | Erro léxico (ou uso inválido da linha de comando). |
+| `3` | Erro sintático. |
+| `4` | Erro semântico. |
+
+Os diagnósticos são enviados a stderr, sem IR executável em stdout para entradas rejeitadas. O modo semântico antigo continua retornando `0`/`1`.
+
+---
+
+## Como Executar os Testes da IR
+
+As duas pastas `tests/` contêm cópias integrais das três categorias da suíte independente fornecida: **10 válidos sem otimização**, **10 inválidos** e **10 de otimização**, incluindo os fontes `.c` e seus gabaritos `.txt` originais.
+
+### 1. Testando a IR em C
+
+```bash
+cd representacao_intermediaria_c/
+./test_ir_c.sh representacao_intermediaria.c ./tests
+```
+
+### 2. Testando a IR em Python
+
+```bash
+cd representacao_intermediaria_python/
+./test_ir_python.sh representacao_intermediaria.py ./tests
+```
+
+Os scripts usam Bash e Python 3.10+ para a validação; o script C também exige GCC. `PYTHON_BIN`, `CC` e `CFLAGS` permitem selecionar as ferramentas. O script C compila uma única vez em uma pasta temporária e a remove ao terminar. Os scripts procuram um interpretador funcional em `python3` e depois `python`, evitando o alias da Microsoft Store quando ele não funciona.
+
+**Critério de comparação:** os gabaritos canônicos não fixam uma serialização byte a byte. Para cada fonte válido, o validador executa a AST em um intérprete de referência independente do gerador e executa as IRs `-O0` e `-O1` em uma máquina virtual, comparando impressões e retorno. Para inválidos, verifica rejeição, categoria e ausência de IR. A máquina virtual também verifica instruções, aridade, destinos de desvio e uso de valores não definidos; limita os passos para detectar laços involuntários.
+
+Para comparar também a saída textual determinística dos dois geradores, compile o executável C e execute, na raiz:
+
+```bash
+python validar_ir.py --suite representacao_intermediaria_python/tests \
+  --compiler representacao_intermediaria_python/representacao_intermediaria.py \
+  --python --peer ./representacao_intermediaria_c/representacao_intermediaria
+```
+
+A máquina virtual e o intérprete são ferramentas de teste, não um backend de produção. Assembly, modelo de memória em bytes e validação dinâmica de programas com comportamento indefinido não fazem parte desta etapa.
 
 ---
 

@@ -784,6 +784,10 @@ class SemanticAnalyzer:
 # ==============================================================================
 
 def main():
+    if any(arg in {"--ir", "-O0", "-O1"} for arg in sys.argv[1:]):
+        from representacao_intermediaria_python.representacao_intermediaria import main as ir_main
+        sys.exit(ir_main())
+
     if len(sys.argv) < 2:
         print("Uso: python3 minic.py <arquivo_fonte.c>")
         sys.exit(1)
