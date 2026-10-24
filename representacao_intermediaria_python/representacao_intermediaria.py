@@ -346,7 +346,140 @@ class Generator:
             self.scopes.pop()
         if self.optimize:
             self.cleanup()
-        return "\n".join(" ".join(i) for i in self.code) + "\n"
+        return self.format_code()
+
+    @staticmethod
+    def read_start(op):
+        return 1 if op in PURE | {"load", "call", "alloc", "arg"} else 0
+
+    def simplify_snapshots(self):
+        code = list(self.code)
+        for index, instruction in enumerate(code):
+            if instruction is None:
+                continue
+            op, *args = instruction
+            if op != "mov" or not args[0].startswith("%t") or not args[1].startswith(("%v", "@g")):
+                continue
+            dest, source = args
+            last_use = index
+            for pos in range(index + 1, len(code)):
+                if code[pos] is None:
+                    continue
+                next_op, *operands = code[pos]
+                if next_op == "endfunc":
+                    break
+                if dest in operands[self.read_start(next_op):]:
+                    last_use = pos
+            safe = True
+            for pos in range(index + 1, last_use + 1):
+                entry = code[pos]
+                if entry is None:
+                    continue
+                next_op, *operands = entry
+                if next_op in {"call", "label", "jmp"} or (
+                    next_op in {"brfalse", "brtrue", "ret"} and pos < last_use
+                ):
+                    safe = False
+                    break
+                if self.read_start(next_op) and operands[0] == source:
+                    safe = False
+                    break
+            if not safe:
+                continue
+            code[index] = None
+            for pos in range(index + 1, last_use + 1):
+                if code[pos] is None:
+                    continue
+                next_op, *operands = code[pos]
+                first = self.read_start(next_op)
+                operands[first:] = [source if value == dest else value for value in operands[first:]]
+                code[pos] = (next_op, *operands)
+        return [entry for entry in code if entry is not None]
+
+    def format_code(self):
+        code = self.simplify_snapshots()
+        globals_ = {
+            args[0]: args[0].split("_", 1)[1]
+            for op, *args in code if op == "alloc" and args[0].startswith("@")
+        }
+        symbols = {value: key for key, value in BINARY.items()}
+        output = []
+        index = 0
+        while index < len(code):
+            _, function, _ = code[index]
+            end = index + 1
+            while code[end][0] != "endfunc":
+                end += 1
+            body = code[index + 1:end]
+            index = end + 1
+            if function == "$init" and all(entry[0] == "ret" for entry in body):
+                continue
+            names = dict(globals_)
+            used = set(names.values())
+            for op, *args in body:
+                if op not in {"alloc", "arg"} or args[0] in names:
+                    continue
+                base = args[0].split("_", 1)[1]
+                if function == "$init" and args[0].startswith("%"):
+                    base += "#init"
+                name, suffix = base, 2
+                while name in used:
+                    name = f"{base}#{suffix}"
+                    suffix += 1
+                names[args[0]] = name
+                used.add(name)
+            counter = 0
+
+            def display(value):
+                nonlocal counter
+                if value.startswith("%t") and value not in names:
+                    counter += 1
+                    while f"t{counter}" in used:
+                        counter += 1
+                    names[value] = f"t{counter}"
+                    used.add(names[value])
+                return names.get(value, value)
+
+            formals = [display(args[0]) for op, *args in body if op == "arg"]
+            header = f"func {function}"
+            if formals:
+                header += "(" + ", ".join(formals) + ")"
+            output.append(header)
+            for op, *args in body:
+                values = [display(value) for value in args]
+                if op == "arg":
+                    continue
+                if op == "alloc":
+                    if not args[0].startswith("@") and not args[1].endswith("[]"):
+                        continue
+                    line = "alloc " + " ".join(values)
+                elif op == "mov":
+                    line = f"{values[0]} = {values[1]}"
+                elif op in symbols:
+                    line = f"{values[0]} = {values[1]} {symbols[op]} {values[2]}"
+                elif op in {"neg", "not", "i2f"}:
+                    operator = {"neg": "-", "not": "not", "i2f": "int_to_float"}[op]
+                    line = f"{values[0]} = {operator} {values[1]}"
+                elif op == "call":
+                    line = f"{values[0]} = call {values[1]}, {values[2]}"
+                elif op == "load":
+                    line = f"{values[0]} = load {values[1]}[{values[2]}]"
+                elif op == "store":
+                    line = f"store {values[0]}[{values[1]}], {values[2]}"
+                elif op in {"brfalse", "brtrue"}:
+                    branch = "ifFalse" if op == "brfalse" else "ifTrue"
+                    line = f"{branch} {values[0]} goto {values[1]}"
+                elif op == "jmp":
+                    line = f"goto {values[0]}"
+                elif op == "label":
+                    output.append(values[0] + ":")
+                    continue
+                else:
+                    keyword = "return" if op == "ret" else op
+                    line = " ".join([keyword, *values])
+                output.append("  " + line)
+            output.append("endfunc")
+        return "\n".join(output) + "\n"
 
     def cleanup(self):
         # Conservative dead definitions: retain trapping operations, memory and calls.

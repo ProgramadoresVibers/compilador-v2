@@ -600,6 +600,8 @@ static void ir_cleanup(IRGenerator* g) {
     }
 }
 
+#include "formatar_ir.h"
+
 static void ir_generate(const NoAST* tree, int optimize) {
     IRGenerator generator = {0};
     IRGenerator* g = &generator;
@@ -637,17 +639,7 @@ static void ir_generate(const NoAST* tree, int optimize) {
     if (optimize) {
         ir_cleanup(g);
     }
-    for (size_t i = 0; i < g->count; i++) {
-        IRInstruction* instruction = &g->code[i];
-        if (instruction->removed) {
-            continue;
-        }
-        printf("%s", instruction->op);
-        for (int a = 0; a < instruction->count; a++) {
-            printf(" %s", instruction->args[a]);
-        }
-        putchar('\n');
-    }
+    ir_present(g);
     while (g->bindings) {
         IRBinding* next = g->bindings->next;
         free(g->bindings);

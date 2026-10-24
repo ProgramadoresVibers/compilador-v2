@@ -35,7 +35,7 @@ O repositório está organizado em diretórios separados para isolar as implemen
 * **`parser_python/`** — Contém o código-fonte do parser em Python (`parser.py`) e o script de automação (`testar_parser_python.sh`).
 * **`analisador_semantico_c/`** — Contém o código-fonte do analisador semântico em C (`minic.c`), script de automação (`testes_semanticos_c.sh`) e casos de teste.
 * **`analisador_semantico_python/`** — Contém o código-fonte do analisador semântico em Python (`minic.py`), script de automação (`testes_semanticos_py.sh`) e casos de teste.
-* **`representacao_intermediaria_c/`** — Gerador nativo em C (`representacao_intermediaria.c` e `ir.h`), script `test_ir_c.sh` e suíte de IR.
+* **`representacao_intermediaria_c/`** — Gerador nativo em C (`representacao_intermediaria.c`, `ir.h` e `formatar_ir.h`), script `test_ir_c.sh` e suíte de IR.
 * **`representacao_intermediaria_python/`** — Gerador em Python (`representacao_intermediaria.py`), script `test_ir_python.sh` e a mesma suíte de IR.
 * **`validar_ir.py`** — Validador compartilhado da suíte fornecida, máquina virtual de IR e intérprete independente da AST.
 * **`tests/`** *(presente nas subpastas)* — Armazena os códigos de teste (`.c` e `.minic`) e seus respectivos gabaritos esperados.
@@ -312,57 +312,59 @@ O fluxo completo é **código-fonte → tokens → AST → análise semântica �
 
 ## Funcionalidades
 
-- **Expressões e Tipos**: Aritmética, módulo, comparações, operadores unários, atribuições associativas e promoção explícita `int → float` com `i2f`. A divisão entre inteiros trunca em direção a zero e o resto acompanha o sinal do dividendo.
+- **Expressões e Tipos**: Aritmética, módulo, comparações, operadores unários, atribuições associativas e promoção explícita `int → float` com `int_to_float`. A divisão entre inteiros trunca em direção a zero e o resto acompanha o sinal do dividendo.
 - **Controle de Fluxo**: `if`/`else`, `while`, `for`, `break`, `continue` e `return`, com rótulos e desvios. No `for`, `continue` passa pelo incremento antes de testar novamente a condição.
 - **Curto-Circuito**: `&&` e `||` usam desvios; o segundo operando só é avaliado quando necessário, preservando atribuições e chamadas com efeitos.
 - **Funções e Recursão**: Parâmetros formais, argumentos, retorno, funções `void`, chamadas aninhadas e recursão direta ou mútua. Os argumentos são avaliados da esquerda para a direita antes de emitir `param`, preservando seus valores em temporários.
 - **Escopos**: Cada variável recebe um nome de armazenamento único, preservando sombreamento entre blocos, parâmetros e globais. Temporários também não colidem com identificadores do programa.
 - **Vetores**: `alloc`, `load` e `store` com índices em elementos, sem pressupor tamanho em bytes de uma arquitetura. Parâmetros vetoriais preservam a referência e seus efeitos sobre o vetor original.
 - **Entrada e Saída**: `print` preserva a ordem de avaliação e impressão dos argumentos. `read()` gera uma instrução de leitura sem destino, conforme a gramática atual; não é uma expressão que retorna valor.
-- **Inicialização Global**: A função sintética `$init`, cujo nome não pode ser escrito como identificador MiniC, executa as declarações e comandos globais antes de `main`. O armazenamento global escalar possui valor inicial zero. O código consumidor da IR deve executar `$init` uma única vez.
+- **Inicialização Global**: Quando há declarações ou comandos globais, a função sintética `$init`, cujo nome não pode ser escrito como identificador MiniC, executa essa inicialização antes de `main`. Ela é omitida quando está vazia. O armazenamento global escalar possui valor inicial zero. Quando presente, o código consumidor da IR deve executar `$init` uma única vez.
 
 ---
 
 ## Formato da IR
 
-Cada linha contém uma instrução e seus operandos, separados por espaços. Literais `char` e `string` mantêm aspas e escapes, podendo conter espaços dentro das aspas. Nomes `%tN` são temporários; `%vN_nome` são variáveis locais; `@gN_nome` são globais. Os contadores são compartilhados durante a geração para garantir nomes únicos.
+A saída segue a notação dos gabaritos: nomes das variáveis do programa, temporários `t1`, `t2`, operações infixas e duas posições de indentação dentro das funções. Os temporários são numerados por função, evitando colisões com identificadores existentes. Variáveis sombreadas recebem sufixos como `x#2` para preservar a distinção entre seus armazenamentos. Literais `char` e `string` mantêm aspas e escapes.
+
+A geração mantém internamente instruções estruturadas e nomes únicos. Na apresentação, declarações escalares locais não são impressas e cópias temporárias de leitura são omitidas somente quando não há redefinição ou transferência de controle que possa alterar o valor observado. Cópias necessárias para preservar efeitos de chamadas e atribuições continuam explícitas, inclusive em `-O0`.
 
 | Instrução | Significado |
 | :--- | :--- |
-| `func nome tipo` / `endfunc` | Delimitam uma função. |
-| `alloc destino tipo quantidade` | Reserva um escalar ou vetor; vetores usam tipo `int[]`, por exemplo. |
-| `arg destino tipo` | Recebe o próximo parâmetro formal. |
-| `mov destino origem` | Copia um valor. |
-| `add/sub/mul/div/mod destino a b` | Operações aritméticas. |
-| `lt/le/gt/ge/eq/ne destino a b` | Comparações que produzem `bool`. |
-| `neg/not/i2f destino origem` | Negação aritmética, lógica ou conversão numérica. |
-| `label rótulo` / `jmp rótulo` | Define um rótulo ou desvia incondicionalmente. |
-| `brfalse condição rótulo` / `brtrue condição rótulo` | Desvia conforme um booleano. |
-| `param valor` / `call destino função aridade` | Passa argumentos por valor; valores vetoriais são referências. |
-| `load destino vetor índice` / `store vetor índice valor` | Lê ou grava um elemento. |
+| `func nome` / `func nome(a, b)` / `endfunc` | Delimitam uma função, com parâmetros formais opcionais. |
+| `alloc vetor tipo[] quantidade` | Reserva um vetor; alocações escalares globais também aparecem em `$init`. |
+| `destino = origem` | Copia um valor. |
+| `t1 = a + b` | Operação aritmética; também admite `-`, `*`, `/` e `%`. |
+| `t1 = a < b` | Comparação; também admite `>`, `<=`, `>=`, `==` e `!=`. |
+| `t1 = - a` / `t1 = not a` / `t1 = int_to_float a` | Operações unárias e conversão numérica. |
+| `L1:` / `goto L1` | Define um rótulo ou desvia incondicionalmente. |
+| `ifFalse condição goto L1` / `ifTrue condição goto L1` | Desvia conforme um booleano. |
+| `param valor` / `t1 = call função, aridade` | Passa argumentos por valor; valores vetoriais são referências. |
+| `t1 = load vetor[índice]` / `store vetor[índice], valor` | Lê ou grava um elemento. |
 | `print valor` / `read` | Efeitos de entrada e saída. |
-| `ret [valor]` | Retorna da função, com valor opcional. |
+| `return [valor]` | Retorna da função, com valor opcional. |
 
-Exemplo de trecho gerado sem otimização para `int a = 2; print(a + 3);`:
+Exemplo de saída sem otimização para o caso P01:
 
 ```text
-alloc %v1_a int 1
-mov %v1_a 2
-mov %t2 %v1_a
-add %t3 %t2 3
-print %t3
+func main
+  a = 7
+  b = 4
+  t1 = a + b
+  c = t1
+  print c
+  return 0
+endfunc
 ```
 
 ---
 
 ## Modos de Otimização
 
-- **`-O0` (padrão)**: Mantém operações e cópias explícitas, sem propagação de constantes.
+- **`-O0` (padrão)**: Mantém as operações, sem propagação de constantes; a apresentação remove apenas cópias de leitura que podem ser substituídas com segurança pelo nome da variável.
 - **`-O1`**: Propaga constantes conhecidas, dobra expressões constantes e conversões, simplifica identidades inteiras (`x + 0`, `x - 0`, `x * 1`, `x / 1`), seleciona ramos constantes e elimina definições locais sem uso e instruções após uma transferência incondicional.
 
 A propagação é conservadora: condições desconhecidas invalidam o conhecimento ao unir ramos; definições que podem mudar no laço são invalidadas antes de sua geração e ao sair; chamadas invalidam constantes globais. Constantes invariantes, como `x = 6` e `y = 7` em um laço que não altera essas variáveis, permitem substituir `x * y` por `42` no próprio código gerado.
-
-As otimizações preservam chamadas, entrada/saída, acessos à memória e divisões/módulos potencialmente excepcionais, mesmo quando seu resultado não é utilizado. Divisão por zero e operações inteiras constantes que ultrapassam o intervalo de 32 bits não são dobradas. Identidades algébricas de ponto flutuante não são aplicadas. Não há, nesta versão, análise geral de reaching definitions, eliminação geral de subexpressões comuns, movimentação de expressões não constantes para fora dos laços ou redução de força de variáveis de indução. Essas transformações podem ser acrescentadas posteriormente sem alterar a IR.
 
 ---
 

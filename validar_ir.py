@@ -63,6 +63,86 @@ def binary(op, left, right):
     raise AssertionError(op)
 
 
+def parse_display(text):
+    """Converte a notação dos gabaritos em instruções executáveis na VM."""
+    instructions = []
+    globals_ = set()
+    function = None
+    operators = {
+        "+": "add", "-": "sub", "*": "mul", "/": "div", "%": "mod",
+        "<": "lt", ">": "gt", "<=": "le", ">=": "ge", "==": "eq", "!=": "ne",
+    }
+
+    def operand(value):
+        try:
+            atom(value)
+            return value
+        except ValueError:
+            return ("@" if value in globals_ else "%") + value
+
+    for original in text.splitlines():
+        line = original.strip()
+        if not line:
+            continue
+        header = re.fullmatch(r"func ([^ ()]+)(?:\(([^()]*)\))?", line)
+        if header:
+            function = header.group(1)
+            instructions.append(["func", function, "_"])
+            if header.group(2):
+                for formal in header.group(2).split(","):
+                    instructions.append(["arg", operand(formal.strip()), "_"])
+            continue
+        if line == "endfunc":
+            instructions.append(["endfunc"])
+            function = None
+            continue
+        if line.endswith(":"):
+            instructions.append(["label", line[:-1]])
+            continue
+        assignment = re.fullmatch(r"(\S+) = (.+)", line)
+        if assignment:
+            dest = operand(assignment.group(1))
+            expression = assignment.group(2)
+            call = re.fullmatch(r"call (\S+), (\d+)", expression)
+            load = re.fullmatch(r"load (\S+)\[(\S+)\]", expression)
+            values = TOKEN.findall(expression)
+            if call:
+                instructions.append(["call", dest, call.group(1), call.group(2)])
+            elif load:
+                instructions.append(["load", dest, operand(load.group(1)), operand(load.group(2))])
+            elif len(values) == 3 and values[1] in operators:
+                instructions.append([operators[values[1]], dest, operand(values[0]), operand(values[2])])
+            elif len(values) == 2 and values[0] in {"-", "not", "int_to_float"}:
+                op = {"-": "neg", "not": "not", "int_to_float": "i2f"}[values[0]]
+                instructions.append([op, dest, operand(values[1])])
+            else:
+                assert len(values) == 1, original
+                instructions.append(["mov", dest, operand(values[0])])
+            continue
+        store = re.fullmatch(r"store (\S+)\[(\S+)\], (.+)", line)
+        if store:
+            instructions.append(["store", *[operand(value) for value in store.groups()]])
+            continue
+        op, *args = TOKEN.findall(line)
+        if op == "alloc":
+            assert len(args) == 3, original
+            if function == "$init":
+                globals_.add(args[0])
+            instructions.append(["alloc", operand(args[0]), args[1], args[2]])
+        elif op in {"ifFalse", "ifTrue"}:
+            assert len(args) == 3 and args[1] == "goto", original
+            instructions.append(["brfalse" if op == "ifFalse" else "brtrue", operand(args[0]), args[2]])
+        elif op == "goto":
+            instructions.append(["jmp", *args])
+        elif op in {"print", "param", "return", "read"}:
+            instructions.append(["ret" if op == "return" else op, *[operand(value) for value in args]])
+        else:
+            raise AssertionError(f"Instrução desconhecida: {original}")
+    if not any(i[:2] == ["func", "$init"] for i in instructions):
+        instructions = [["func", "$init", "void"], ["ret"], ["endfunc"], *instructions]
+    return instructions
+
+
 class Machine:
     def __init__(self, text, inputs=()):
         self.functions = {}
@@ -71,10 +151,8 @@ class Machine:
         self.inputs = iter(inputs)
         self.steps = 0
         current = None
-        for line in text.splitlines():
-            tokens = TOKEN.findall(line)
-            if not tokens:
-                continue
+        for tokens in parse_display(text):
+            line = " ".join(tokens)
             op, *args = tokens
             if op == "ret":
                 assert len(args) <= 1, line
