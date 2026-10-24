@@ -21,8 +21,7 @@ Para rodar o projeto e executar os testes com sucesso, certifique-se de ter as s
 | **Analisador Léxico (Scanner)** | **Concluído** | Conversão do código-fonte em tokens e geração de diagnósticos de erro. |
 | **Analisador Sintático (Parser)** | **Concluído** | Verificação da gramática utilizando a técnica **LL(1)** e construção da estrutura sintática a partir dos tokens. |
 | **Analisador Semântico** | **Concluído** | Checagem de tipos, escopos, aridade, coerções numéricas e consistência semântica. |
-| **Geração de Código Intermediário** | **Implementado** | IR de três endereços, controle de fluxo, chamadas, vetores e otimizações conservadoras. |
-| **Geração de Assembly** | Planejado | Tradução da IR para código de máquina/assembly. |
+| **Geração de Código Intermediário** | **Concluído** | IR de três endereços, controle de fluxo, chamadas, vetores e otimizações conservadoras. |
 
 ---
 
