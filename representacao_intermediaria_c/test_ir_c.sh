@@ -16,6 +16,15 @@ if [[ -z "${PYTHON_BIN:-}" ]]; then
 fi
 : "${PYTHON_BIN:?Defina PYTHON_BIN com o interpretador Python 3.10 ou superior}"
 CC="${CC:-gcc}"
+
+COMPILER="$(command -v "$CC")"
+
+case "$OSTYPE" in
+    msys*|cygwin*)
+        export PATH="$(dirname -- "$COMPILER"):$PATH"
+        ;;
+esac
+
 CFLAGS="${CFLAGS:--std=c11 -Wall -Wextra -O2}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TMP_DIR"' EXIT
