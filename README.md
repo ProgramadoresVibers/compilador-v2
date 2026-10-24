@@ -366,8 +366,6 @@ endfunc
 
 A propagação é conservadora: condições desconhecidas invalidam o conhecimento ao unir ramos; definições que podem mudar no laço são invalidadas antes de sua geração e ao sair; chamadas invalidam constantes globais. Constantes invariantes, como `x = 6` e `y = 7` em um laço que não altera essas variáveis, permitem substituir `x * y` por `42` no próprio código gerado.
 
-As otimizações preservam chamadas, entrada/saída, acessos à memória e divisões/módulos potencialmente excepcionais, mesmo quando seu resultado não é utilizado. Divisão por zero e operações inteiras constantes que ultrapassam o intervalo de 32 bits não são dobradas. Identidades algébricas de ponto flutuante não são aplicadas. Não há, nesta versão, análise geral de reaching definitions, eliminação geral de subexpressões comuns, movimentação de expressões não constantes para fora dos laços ou redução de força de variáveis de indução. Essas transformações podem ser acrescentadas posteriormente sem alterar a IR.
-
 ---
 
 ## Como Executar
